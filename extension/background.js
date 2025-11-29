@@ -52,6 +52,28 @@ chrome.runtime.onMessage.addListener(function (messageUnTyped, sender, sendRespo
         })
     }
 
+    if (message.type === "stream_caption_batch") {
+        if (Array.isArray(message.captionBatch) && message.captionBatch.length > 0) {
+            streamCaptionBatch(message.captionBatch, message.metadata)
+                .then(() => {
+                    /** @type {ExtensionResponse} */
+                    const response = { success: true }
+                    sendResponse(response)
+                })
+                .catch((error) => {
+                    const parsedError = /** @type {ErrorObject} */ (error)
+                    /** @type {ExtensionResponse} */
+                    const response = { success: false, message: parsedError }
+                    sendResponse(response)
+                })
+        }
+        else {
+            /** @type {ExtensionResponse} */
+            const response = { success: true }
+            sendResponse(response)
+        }
+    }
+
     if (message.type === "download_transcript_at_index") {
         if ((typeof message.index === "number") && (message.index >= 0)) {
             // Download the requested item
@@ -501,6 +523,88 @@ function postTranscriptToWebhook(index) {
                 else {
                     reject({ errorCode: "012", errorMessage: "No webhook URL configured" })
                 }
+            })
+        })
+    })
+}
+
+/**
+ * @param {TranscriptBlock[]} captionBatch
+ * @param {CaptionBatchMetadata | undefined} metadata
+ */
+function streamCaptionBatch(captionBatch, metadata) {
+    return new Promise((resolve, reject) => {
+        if (!captionBatch || captionBatch.length === 0) {
+            resolve("No captions to stream")
+            return
+        }
+
+        chrome.storage.sync.get(["webhookUrl", "webhookBodyType"], function (resultSyncUntyped) {
+            const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+
+            if (!resultSync.webhookUrl) {
+                resolve("No webhook URL configured for streaming")
+                return
+            }
+
+            const preferredBodyType = metadata?.webhookBodyType === "advanced"
+                ? "advanced"
+                : (resultSync.webhookBodyType === "advanced" ? "advanced" : "simple")
+            const meetingSoftwareValue = metadata?.meetingSoftware ? metadata.meetingSoftware : ""
+            const meetingTitleValue = metadata?.meetingTitle ? metadata.meetingTitle : ""
+            const meetingStartTimestampValue = metadata?.meetingStartTimestamp ? new Date(metadata.meetingStartTimestamp).toISOString() : new Date().toISOString()
+            const batchStartTimestampValue = metadata?.batchStartTimestamp ? new Date(metadata.batchStartTimestamp).toISOString() : meetingStartTimestampValue
+            const batchEndTimestampValue = metadata?.batchEndTimestamp ? new Date(metadata.batchEndTimestamp).toISOString() : new Date().toISOString()
+
+            const batchWindow = {
+                start: batchStartTimestampValue,
+                end: batchEndTimestampValue,
+                size: captionBatch.length,
+                reason: metadata?.reason || "interval"
+            }
+
+            /** @type {WebhookBody} */
+            let webhookData
+            if (preferredBodyType === "advanced") {
+                webhookData = {
+                    webhookBodyType: "advanced",
+                    meetingSoftware: meetingSoftwareValue,
+                    meetingTitle: meetingTitleValue,
+                    meetingStartTimestamp: meetingStartTimestampValue,
+                    meetingEndTimestamp: batchEndTimestampValue,
+                    transcript: captionBatch,
+                    chatMessages: [],
+                    batchWindow
+                }
+            }
+            else {
+                webhookData = {
+                    webhookBodyType: "simple",
+                    meetingSoftware: meetingSoftwareValue,
+                    meetingTitle: meetingTitleValue,
+                    meetingStartTimestamp: new Date(meetingStartTimestampValue).toLocaleString("default", timeFormat).toUpperCase(),
+                    meetingEndTimestamp: new Date(batchEndTimestampValue).toLocaleString("default", timeFormat).toUpperCase(),
+                    transcript: getTranscriptString(captionBatch),
+                    chatMessages: "",
+                    batchWindow
+                }
+            }
+
+            fetch(resultSync.webhookUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(webhookData)
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error(`Webhook request failed with HTTP status code ${response.status} ${response.statusText}`)
+                }
+            }).then(() => {
+                resolve("Live caption batch posted successfully")
+            }).catch(error => {
+                console.error("Live caption batch failed:", error)
+                reject({ errorCode: "011", errorMessage: error instanceof Error ? error.message : String(error) })
             })
         })
     })

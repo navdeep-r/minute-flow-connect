@@ -1,221 +1,416 @@
-<!-- popup.html -->
 <!DOCTYPE html>
 <html>
-
 <head>
-  <title>TranscripTonic</title>
+  <title>Minute Flow</title>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=SUSE:wght@400;700&display=swap");
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap");
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
     body {
-      width: 540px;
-      padding: 1.5rem;
-      background: #071f29;
-      color: #C0C0C0;
-      font-family: "SUSE", sans-serif;
-      font-size: 1rem;
+      width: 580px;
+      min-height: 600px;
+      background: #0a0e27;
+      color: #e0e6ff;
+      font-family: "Space Grotesk", sans-serif;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Animated space background */
+    .space-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+      overflow: hidden;
+    }
+
+    /* Stars animation */
+    .stars {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      animation: twinkle 3s infinite;
+    }
+
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: float 20s infinite linear;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes float {
+      from { transform: translateY(0px); }
+      to { transform: translateY(-100vh); }
+    }
+
+    /* Comet animation */
+    .comet {
+      position: absolute;
+      width: 2px;
+      height: 80px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(147, 197, 253, 1) 100%);
+      animation: comet-fall 8s infinite;
+      opacity: 0;
+    }
+
+    @keyframes comet-fall {
+      0% { 
+        transform: translateX(-100px) translateY(-100px) rotate(-45deg);
+        opacity: 0;
+      }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { 
+        transform: translateX(600px) translateY(600px) rotate(-45deg);
+        opacity: 0;
+      }
+    }
+
+    /* Content container */
+    .content {
+      position: relative;
+      z-index: 1;
+      padding: 2rem;
+      animation: fadeIn 1s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Header with glow effect */
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      animation: slideDown 0.8s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      margin-bottom: 1rem;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
+      50% { box-shadow: 0 0 30px rgba(34, 197, 94, 0.5); }
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: blink 1.5s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
     h1 {
-      font-size: 2rem;
-      margin: 0;
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #93c5fd 0%, #a78bfa 50%, #f9a8d4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+      animation: shimmer 3s infinite;
+      background-size: 200% 200%;
     }
 
-    .header {
-      margin-bottom: 1rem;
+    @keyframes shimmer {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
 
-    .header-content {
+    .subtitle {
+      color: #94a3b8;
+      font-size: 1rem;
+      opacity: 0;
+      animation: fadeInText 1s ease-out 0.5s forwards;
+    }
+
+    @keyframes fadeInText {
+      to { opacity: 1; }
+    }
+
+    /* Glass card effect */
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      animation: floatUp 0.8s ease-out;
+      animation-fill-mode: both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      animation: shine 3s infinite;
+    }
+
+    @keyframes shine {
+      0% { left: -100%; }
+      50%, 100% { left: 100%; }
+    }
+
+    @keyframes floatUp {
+      from { 
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to { 
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .card:nth-child(2) { animation-delay: 0.2s; }
+    .card:nth-child(3) { animation-delay: 0.4s; }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 0.75rem;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-    }
-
-    .header-text {
-      color: #2A9ACA;
-    }
-
-    .header-description {
-      margin: 0;
-    }
-
-    .logo {
-      width: 48px;
-      height: 48px;
-      border-radius: 96px;
-    }
-
-    .get-started {
-      padding: 1rem;
-      background-color: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(4px);
-      border-radius: 8px;
-      margin-bottom: 1rem;
-      text-align: left;
-    }
-
-    ul {
-      padding-inline-start: 20px;
-      font-size: 1rem;
-    }
-
-    p {
-      font-size: 1rem;
-      margin-bottom: 0;
-    }
-
-    .radio-item {
-      display: flex;
       gap: 0.5rem;
-      align-items: start;
-      margin-bottom: 1rem;
     }
 
-    .sub-text {
-      color: #a0a0a0;
+    .emoji {
+      font-size: 1.5rem;
+      animation: bounce 2s infinite;
     }
 
-    input {
-      margin-top: 0.25rem;
-      accent-color: #2A9ACA;
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
     }
 
-    label {
-      margin: 0;
-      margin-bottom: 0.25rem;
-      font-size: 1rem;
-      cursor: pointer;
+    .card-text {
+      color: #cbd5e1;
+      line-height: 1.6;
+      font-size: 0.95rem;
     }
 
-    a {
-      color: #2A9ACA;
-      font-weight: bold;
-      text-underline-offset: 4px;
+    /* Command syntax styling */
+    .command-box {
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid #3b82f6;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      font-family: 'Courier New', monospace;
+      animation: glow 2s infinite;
     }
 
-    button {
-      color: #2A9ACA;
-      font-weight: bold;
-      font-size: 1rem;
-      text-decoration: underline;
-      text-underline-offset: 4px;
-      font-family: "SUSE", sans-serif;
-      background: transparent;
-      border: none;
-      cursor: pointer;
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+      50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
     }
 
-    .divider {
-      border-color: #a0a0a0;
-    }
-
-    .beta {
-      margin-bottom: 1.5rem;
+    .command-step {
       display: flex;
-      /* gap: 0.25rem; */
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.75rem 0;
     }
 
-    .footer {
-      margin-bottom: 2.75rem;
-      display: flex;
-      gap: 1.5rem;
-      justify-content: space-between;
+    .command-label {
+      background: rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      padding: 0.25rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      min-width: 100px;
+      text-align: center;
     }
 
-    .footer-link {
-      font-size: small;
-      display: flex;
-      justify-content: space-between;
+    .command-value {
+      color: #fbbf24;
+      font-weight: 600;
+      font-size: 1.1rem;
     }
 
-    .footer-separator {
-      margin: 0 0.5rem;
+    .example-text {
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 0.9rem;
     }
 
-    .tool-logo {
-      height: 24px;
-      width: auto;
+    /* Floating particles */
+    .particle {
+      position: absolute;
+      background: radial-gradient(circle, rgba(147, 197, 253, 0.8) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      animation: particle-float 15s infinite;
+    }
+
+    @keyframes particle-float {
+      0%, 100% { 
+        transform: translate(0, 0) scale(1);
+        opacity: 0;
+      }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { 
+        transform: translate(100px, -500px) scale(0);
+        opacity: 0;
+      }
+    }
+
+    .highlight {
+      color: #fbbf24;
+      font-weight: 600;
     }
   </style>
 </head>
-
 <body>
-  <div>
+  <!-- Space background with stars -->
+  <div class="space-bg">
+    <div class="stars" id="stars"></div>
+    <div class="comet" style="top: 10%; left: 20%; animation-delay: 0s;"></div>
+    <div class="comet" style="top: 30%; left: 60%; animation-delay: 3s;"></div>
+    <div class="comet" style="top: 50%; left: 10%; animation-delay: 6s;"></div>
+  </div>
+
+  <!-- Floating particles -->
+  <div id="particles"></div>
+
+  <!-- Main content -->
+  <div class="content">
     <div class="header">
-      <div class="header-content">
-        <div class="header-text">
-          <h1>TranscripTonic</h1>
-          <p class="header-description">
-            Simple Google Meet transcripts. Private and open source.
-          </p>
-        </div>
-        <img class="logo" src="./icon.png" alt="Extension icon" />
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span style="color: #22c55e; font-weight: 600;">SYSTEM ONLINE</span>
       </div>
+      <h1>MINUTE FLOW IS ONLINE! </h1>
+      <p class="subtitle">The smarter way to meet</p>
     </div>
 
-    <div class="get-started">
-      <div class="radio-item">
-        <input type="radio" name="mode" id="auto-mode" />
-        <label for="auto-mode"><b>Auto mode</b>
-          <br /><span class="sub-text">Get transcripts of all meetings</span>
-        </label>
+    <div class="card">
+      <div class="card-title">
+        Welcome to the Future
       </div>
-      <div class="radio-item">
-        <input type="radio" name="mode" id="manual-mode" />
-        <label for="manual-mode"><b>Manual mode</b> <br />
-          <span class="sub-text">Switch on transcript as needed using the CC icon in Google Meet</span>
-        </label>
-      </div>
-      <!-- <hr class="divider" /> -->
-      <p class="sub-text">In both modes, transcript will be downloaded as a text file at the end of each meeting
+      <p class="card-text">
+        Thank you for choosing the smarter way to meet. We are actively converting spoken content into 
+        <span class="highlight">structured notes</span> and <span class="highlight">automation tasks</span>, 
+        eliminating the need for tiring manual minutes of meeting.
       </p>
     </div>
 
-    <div class="get-started" style="display: flex; gap: 1rem; align-items: center;">
-      <div style="display: flex; gap: 0.25rem; align-items: center;">
-        <img class="tool-logo" src="./icons/google-docs.svg" alt="Google Docs logo">
-        <img class="tool-logo" src="./icons/notion.svg" alt="Notion logo">
+    <div class="card">
+      <div class="card-title">
+        Voice Commands Activated
       </div>
-      <p style="margin-top: 0px;">You can integrate
-        TranscripTonic with your
-        favourite tools like <b>Google Docs, Notion, n8n and more</b> using <a href="meetings.html#webhooks"
-          target="_blank"><b>webhooks -></b></a></p>
-    </div>
-
-    <div>
-      <div class="beta" style="justify-content: flex-start;">
-        <p style="margin: 0; color: orange"><b>Zoom and Teams transcripts are in beta:</b></p>
-        <!-- <span class="footer-separator"></span> -->
-        <button id="enable-beta">Enable</button>
-        <span>or&nbsp;&nbsp;</span>
-        <a href="https://github.com/vivek-nexus/transcriptonic/wiki/Zoom-and-Teams-beta-testing" target="_blank">learn
-          more</a>
-      </div>
-      <div class="footer">
-        <a href="./meetings.html" target="_blank">Last 10 meetings -></a>
-        <div>
-          <a href="https://github.com/vivek-nexus/transcriptonic#readme" target="_blank">Get help</a>
-          <span class="footer-separator">&#9679;</span>
-          <a href="https://github.com/vivek-nexus/transcriptonic/issues" target="_blank">Report a bug</a>
+      <p class="card-text">
+        To schedule a meeting, create a task, or ask a question, you must use the full, structured command:
+      </p>
+      
+      <div class="command-box">
+        <div class="command-step">
+          <div class="command-label">Call Out:</div>
+          <div class="command-value">"MINUTE FLOW,"</div>
+        </div>
+        <div class="command-step">
+          <div class="command-label">Give Command:</div>
+          <div class="example-text">[Your full instruction]</div>
+        </div>
+        <div class="command-step">
+          <div class="command-label">End With:</div>
+          <div class="command-value">", COOL"</div>
         </div>
       </div>
-      <p class="footer-link">
-        <span>
-          <span id="version"></span> /
-          <!-- <button id="notice">Notice</button> -->
-          <a href="https://github.com/vivek-nexus/transcriptonic?tab=readme-ov-file#notice" target="_blank">Notice</a>
-        </span>
-        <span>
-          Another project by <a href="https://vivek-nexus.github.io" target="_blank">Vivek</a>
-        </span>
+
+      <p class="card-text" style="margin-top: 1rem; font-size: 0.85rem; color: #94a3b8;">
+        <strong>Example:</strong> "MINUTE FLOW, schedule a team sync for next Monday at 2 PM, COOL"
       </p>
+    </div>
+
+    <div style="text-align: center; margin-top: 1.5rem;">
+      <a href="./meetings.html" target="_blank" style="color: #fbbf24; font-weight: 600; font-size: 1.1rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; transition: all 0.3s ease; animation: floatUp 0.8s ease-out 0.6s both;">
+        configure api endpoint!!! ->
+      </a>
     </div>
   </div>
 
-  <script src="popup.js"></script>
-</body>
+  <script>
+    // Generate stars
+    const starsContainer = document.getElementById('stars');
+    for (let i = 0; i < 100; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      const size = Math.random() * 2;
+      star.style.width = size + 'px';
+      star.style.height = size + 'px';
+      star.style.left = Math.random() * 100 + '%';
+      star.style.top = Math.random() * 100 + '%';
+      star.style.animationDelay = Math.random() * 3 + 's';
+      star.style.animationDuration = (Math.random() * 15 + 15) + 's';
+      starsContainer.appendChild(star);
+    }
 
+    // Generate floating particles
+    const particlesContainer = document.getElementById('particles');
+    setInterval(() => {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      const size = Math.random() * 6 + 2;
+      particle.style.width = size + 'px';
+      particle.style.height = size + 'px';
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.bottom = '0';
+      particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+      particlesContainer.appendChild(particle);
+      
+      setTimeout(() => particle.remove(), 15000);
+    }, 2000);
+  </script>
+</body>
 </html>

@@ -21,6 +21,26 @@
  * @property {string} meetingEndTimestamp ISO timestamp of when the meeting ended
  * @property {TranscriptBlock[] | string} transcript transcript as a formatted string or array containing transcript blocks from the meeting
  * @property {ChatMessage[] | string} chatMessages chat messages as a formatted string or array containing chat messages from the meeting
+ * @property {CaptionBatchWindow | undefined} [batchWindow] metadata describing the batch window when streaming
+ */
+
+/**
+ * @typedef {Object} CaptionBatchWindow
+ * @property {string} start ISO timestamp indicating when this batch started
+ * @property {string} end ISO timestamp indicating when this batch ended
+ * @property {number} size number of transcript blocks included in this batch
+ * @property {"interval" | "shutdown"} [reason] reason for flushing the batch
+ */
+
+/**
+ * @typedef {Object} CaptionBatchMetadata
+ * @property {MeetingSoftware} [meetingSoftware]
+ * @property {string} [meetingTitle]
+ * @property {string} [meetingStartTimestamp]
+ * @property {string} [batchStartTimestamp]
+ * @property {string} [batchEndTimestamp]
+ * @property {"interval" | "shutdown"} [reason]
+ * @property {"simple" | "advanced"} [webhookBodyType]
  */
 
 
@@ -107,8 +127,10 @@
 
 /**
  * @typedef {Object} ExtensionMessage Message sent by the calling script
- * @property {"new_meeting_started" | "meeting_ended" | "download_transcript_at_index" | "retry_webhook_at_index" | "recover_last_meeting" | "register_content_scripts"} type type of message
+ * @property {"new_meeting_started" | "meeting_ended" | "download_transcript_at_index" | "retry_webhook_at_index" | "recover_last_meeting" | "register_content_scripts" | "stream_caption_batch"} type type of message
  * @property {number} [index] index of the meeting to process
+ * @property {TranscriptBlock[]} [captionBatch] streaming caption batch data
+ * @property {CaptionBatchMetadata} [metadata] additional metadata needed for processing streaming batches
  */
 
 /**

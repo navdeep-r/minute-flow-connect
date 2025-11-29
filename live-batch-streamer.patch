@@ -1,0 +1,106 @@
+diff --git a/extension/content.js b/extension/content.js
+index original..modified 100644
+--- a/extension/content.js
++++ b/extension/content.js
+@@ -20,6 +20,10 @@
+ // Transcript array that holds one or more transcript blocks
+ /** @type {TranscriptBlock[]} */
+ let transcript = []
++
++// Live Batch Streamer variables
++let lastSentIndex = 0 // Pointer to track which transcript entries have been sent
++let batchIntervalId = null // Store interval ID for cleanup
+ 
+ // Buffer variables to dump values, which get pushed to transcript array as transcript blocks, at defined conditions
+ /**
+@@ -156,7 +160,13 @@ function meetingRoutines(uiType) {
+     // Update meeting startTimestamp
+     meetingStartTimestamp = new Date().toISOString()
+     overWriteChromeStorage(["meetingStartTimestamp"], false)
+-
++    
++    // Start Live Batch Streamer interval (every 30 seconds)
++    batchIntervalId = setInterval(() => {
++      sendBatchToWebhook()
++    }, 30000) // 30 seconds = 30,000ms
++    console.log("Live Batch Streamer started (30-second interval)")
++    
+ 
+     //*********** MEETING START ROUTINES **********//
+     updateMeetingTitle()
+@@ -272,7 +282,14 @@ function meetingRoutines(uiType) {
+         if (chatMessagesObserver) {
+           chatMessagesObserver.disconnect()
+         }
+-
++        
++        // Stop Live Batch Streamer and send final batch
++        if (batchIntervalId) {
++          clearInterval(batchIntervalId)
++          console.log("Live Batch Streamer stopped")
++        }
++        // Send any remaining data before meeting ends
++        sendBatchToWebhook()
++        
+         // Push any data in the buffer variables to the transcript array, but avoid pushing blank ones. Needed to handle one or more speaking when meeting ends.
+         if ((personNameBuffer !== "") && (transcriptTextBuffer !== "")) {
+           pushBufferToTranscript()
+@@ -413,7 +430,54 @@ function chatMessagesMutationCallback(mutationsList) {
+ 
+ 
+ 
++/**
++ * @description Sends batch of new transcript lines to webhook (delta logic)
++ */
++function sendBatchToWebhook() {
++  // Slice only new entries  since lastSentIndex
++  const batch = transcript.slice(lastSentIndex)
++
++  // Only send if there's new data
++  if (batch.length === 0) {
++    console.log("No new transcript data to send")
++    return
++  }
++
++  // Hardcoded webhook URL as per user request
++  const WEBHOOK_URL = "https://webhook.site/721b4abf-ea74-4a8e-b287-d9a8f2349b2e"
++
++  // Prepare payload
++  const payload = {
++    type: "30_sec_batch",
++    timestamp: new Date().toISOString(),
++    meetingTitle: meetingTitle,
++    meetingStartTimestamp: meetingStartTimestamp,
++    new_lines: batch
++  }
++
++  console.log(`Sending batch with ${batch.length} new entries to webhook...`)
++
++  // Send POST request
++  fetch(WEBHOOK_URL, {
++    method: "POST",
++    headers: {
++      "Content-Type": "application/json"
++    },
++    body: JSON.stringify(payload)
++  })
++    .then(response => {
++      if (!response.ok) {
++        throw new Error(`Webhook request failed with status ${response.status} ${response.statusText}`)
++      }
++      return response
++    })
++    .then(() => {
++      // CRITICAL: Only update pointer on successful response
++      lastSentIndex = transcript.length
++      console.log(`✓ Batch sent successfully. Pointer updated to index ${lastSentIndex}`)
++    })
++    .catch(err => {
++      console.error(`✗ Failed to send batch to webhook:`, err)
++      console.log(`Data preserved. Will retry in next interval. Current pointer: ${lastSentIndex}`)
++    })
++}
++
+ 
+ 
+ //*********** HELPER FUNCTIONS **********//

@@ -6,11 +6,9 @@
 //*********** GLOBAL VARIABLES **********//
 /** @type {ExtensionStatusJSON} */
 const extensionStatusJSON_bug = {
-  "status": 400,
-  "message": `<strong>TranscripTonic encountered a new error</strong> <br /> Please report it <a href="https://github.com/vivek-nexus/transcriptonic/issues" target="_blank">here</a>.`
+  status: 400,
+  message: `<strong>MINUTE FLOW encountered a new error</strong> <br /> Please report it at https://github.com/vivek-nexus/MINUTE FLOW/issues`
 }
-
-const reportErrorMessage = "There is a bug in TranscripTonic. Please report it at https://github.com/vivek-nexus/transcriptonic/issues"
 /** @type {MutationObserverInit} */
 const mutationConfig = { childList: true, attributes: true, subtree: true, characterData: true }
 
@@ -50,7 +48,43 @@ let hasMeetingStarted = false
 let hasMeetingEnded = false
 
 /** @type {ExtensionStatusJSON} */
-let extensionStatusJSON
+let extensionStatusJSON = { status: 200, message: "<strong>MINUTE FLOW IS HEARING😎</strong> <br /> Do not turn off captions" }
+
+const CAPTION_BATCH_INTERVAL_MS = 30000
+/** @type {number | null} */
+let captionBatchTimerId = null
+let isCaptionBatchStreamingEnabled = false
+/** @type {"simple" | "advanced"} */
+let captionBatchBodyType = "simple"
+let lastStreamedTranscriptIndex = 0
+let lastStreamedBufferLength = 0
+
+
+window.addEventListener("beforeunload", () => {
+  stopCaptionBatchTimer(true)
+})
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "sync") {
+    return
+  }
+
+  if (changes.webhookBodyType && changes.webhookBodyType.newValue) {
+    captionBatchBodyType = changes.webhookBodyType.newValue === "advanced" ? "advanced" : "simple"
+  }
+
+  if (Object.prototype.hasOwnProperty.call(changes, "webhookUrl") && hasMeetingStarted) {
+    const webhookChange = changes.webhookUrl
+    if (webhookChange?.newValue) {
+      isCaptionBatchStreamingEnabled = true
+      startCaptionBatchTimer()
+    }
+    else {
+      isCaptionBatchStreamingEnabled = false
+      stopCaptionBatchTimer(false)
+    }
+  }
+})
 
 
 
@@ -155,6 +189,7 @@ function meetingRoutines(uiType) {
     // Update meeting startTimestamp
     meetingStartTimestamp = new Date().toISOString()
     overWriteChromeStorage(["meetingStartTimestamp"], false)
+    initializeCaptionBatchStreaming()
 
 
     //*********** MEETING START ROUTINES **********//
@@ -252,7 +287,7 @@ function meetingRoutines(uiType) {
       chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
         const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
         if (resultSync.operationMode === "manual") {
-          showNotification({ status: 400, message: "<strong>TranscripTonic is not running</strong> <br /> Turn on captions using the CC icon, if needed" })
+          showNotification({ status: 400, message: "<strong>MINUTE FLOW is not running</strong> <br /> Turn on captions using the CC icon, if needed" })
         }
         else {
           showNotification(extensionStatusJSON)
@@ -277,6 +312,7 @@ function meetingRoutines(uiType) {
         if ((personNameBuffer !== "") && (transcriptTextBuffer !== "")) {
           pushBufferToTranscript()
         }
+        stopCaptionBatchTimer(true)
         // Save to chrome storage and send message to download transcript from background script
         overWriteChromeStorage(["transcript", "chatMessages"], true)
       })
@@ -315,6 +351,7 @@ function transcriptMutationCallback(mutationsList) {
             personNameBuffer = currentPersonName
             timestampBuffer = new Date().toISOString()
             transcriptTextBuffer = currentTranscriptText
+            lastStreamedBufferLength = 0
           }
           // Some prior transcript buffer exists
           else {
@@ -328,6 +365,7 @@ function transcriptMutationCallback(mutationsList) {
               personNameBuffer = currentPersonName
               timestampBuffer = new Date().toISOString()
               transcriptTextBuffer = currentTranscriptText
+              lastStreamedBufferLength = 0
             }
             // Same transcript UI block being appended
             else {
@@ -348,7 +386,7 @@ function transcriptMutationCallback(mutationsList) {
     } catch (err) {
       console.error(err)
       if (!isTranscriptDomErrorCaptured && !hasMeetingEnded) {
-        console.log(reportErrorMessage)
+        
         showNotification(extensionStatusJSON_bug)
 
         logError("005", err)
@@ -394,8 +432,6 @@ function chatMessagesMutationCallback(mutationsList) {
     catch (err) {
       console.error(err)
       if (!isChatMessagesDomErrorCaptured && !hasMeetingEnded) {
-        console.log(reportErrorMessage)
-        showNotification(extensionStatusJSON_bug)
 
         logError("006", err)
       }
@@ -418,11 +454,13 @@ function chatMessagesMutationCallback(mutationsList) {
  * @description Pushes data in the buffer to transcript array as a transcript block
  */
 function pushBufferToTranscript() {
-  transcript.push({
+  const transcriptBlock = {
     "personName": personNameBuffer === "You" ? userName : personNameBuffer,
     "timestamp": timestampBuffer,
     "transcriptText": transcriptTextBuffer
-  })
+  }
+  transcript.push(transcriptBlock)
+  lastStreamedBufferLength = 0
   overWriteChromeStorage(["transcript"], false)
 }
 
@@ -440,6 +478,121 @@ function pushUniqueChatBlock(chatBlock) {
     chatMessages.push(chatBlock)
     overWriteChromeStorage(["chatMessages"], false)
   }
+}
+
+function initializeCaptionBatchStreaming() {
+  lastStreamedTranscriptIndex = 0
+  lastStreamedBufferLength = 0
+
+  chrome.storage.sync.get(["webhookUrl", "webhookBodyType"], function (resultSyncUntyped) {
+    const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+    captionBatchBodyType = resultSync.webhookBodyType === "advanced" ? "advanced" : "simple"
+
+    if (resultSync.webhookUrl) {
+      isCaptionBatchStreamingEnabled = true
+      startCaptionBatchTimer()
+    }
+    else {
+      isCaptionBatchStreamingEnabled = false
+    }
+  })
+}
+
+function startCaptionBatchTimer() {
+  if (!isCaptionBatchStreamingEnabled) {
+    return
+  }
+
+  stopCaptionBatchTimer(false)
+  captionBatchTimerId = window.setInterval(() => {
+    flushCaptionBatch("interval")
+  }, CAPTION_BATCH_INTERVAL_MS)
+}
+
+/**
+ * @param {boolean} flushRemaining
+ */
+function stopCaptionBatchTimer(flushRemaining) {
+  if (captionBatchTimerId) {
+    clearInterval(captionBatchTimerId)
+    captionBatchTimerId = null
+  }
+
+  if (flushRemaining) {
+    flushCaptionBatch("shutdown")
+  }
+}
+
+/**
+ * @param {"interval" | "shutdown"} reason
+ */
+function flushCaptionBatch(reason) {
+  if (!isCaptionBatchStreamingEnabled) {
+    lastStreamedTranscriptIndex = transcript.length
+    lastStreamedBufferLength = transcriptTextBuffer.length
+    return
+  }
+
+  /** @type {TranscriptBlock[]} */
+  const pendingBatch = []
+
+  if (transcript.length > lastStreamedTranscriptIndex) {
+    const completedBlocks = transcript.slice(lastStreamedTranscriptIndex).map(block => ({ ...block }))
+    pendingBatch.push(...completedBlocks)
+  }
+
+  const hasBufferDelta = (transcriptTextBuffer.length > lastStreamedBufferLength) && !!transcriptTargetBuffer
+  if (hasBufferDelta) {
+    const normalizedPersonName = personNameBuffer === "You" ? userName : personNameBuffer
+    const bufferDelta = transcriptTextBuffer.slice(lastStreamedBufferLength)
+    if (normalizedPersonName && bufferDelta.trim() !== "") {
+      pendingBatch.push({
+        personName: normalizedPersonName,
+        timestamp: new Date().toISOString(),
+        transcriptText: bufferDelta
+      })
+    }
+  }
+
+  if (pendingBatch.length === 0) {
+    return
+  }
+
+  const batchStartTimestamp = pendingBatch[0].timestamp
+  const batchEndTimestamp = pendingBatch[pendingBatch.length - 1].timestamp
+
+  /** @type {ExtensionMessage} */
+  const message = {
+    type: "stream_caption_batch",
+    captionBatch: pendingBatch,
+    metadata: {
+      meetingSoftware,
+      meetingTitle,
+      meetingStartTimestamp,
+      batchStartTimestamp,
+      batchEndTimestamp,
+      reason,
+      webhookBodyType: captionBatchBodyType
+    }
+  }
+
+  chrome.runtime.sendMessage(message, (responseUntyped) => {
+    const lastError = chrome.runtime.lastError
+    if (lastError) {
+      console.error("Caption batch send failed:", lastError.message)
+      return
+    }
+    const response = /** @type {ExtensionResponse} */ (responseUntyped)
+    if (response && response.success) {
+      lastStreamedTranscriptIndex = transcript.length
+      if (hasBufferDelta) {
+        lastStreamedBufferLength = transcriptTextBuffer.length
+      }
+    }
+    else if (response && !response.success && typeof response.message === "object") {
+      console.error("Caption batch send failed:", response.message.errorMessage)
+    }
+  })
 }
 
 /**
@@ -497,11 +650,11 @@ function pulseStatus() {
   `
 
   /** @type {HTMLDivElement | null}*/
-  let activityStatus = document.querySelector(`#transcriptonic-status`)
+  let activityStatus = document.querySelector(`#MINUTE FLOW-status`)
   if (!activityStatus) {
     let html = document.querySelector("html")
     activityStatus = document.createElement("div")
-    activityStatus.setAttribute("id", "transcriptonic-status")
+    activityStatus.setAttribute("id", "MINUTE FLOW-status")
     activityStatus.style.cssText = `background-color: #2A9ACA; ${statusActivityCSS}`
     html?.appendChild(activityStatus)
   }
@@ -522,7 +675,7 @@ function updateMeetingTitle() {
   waitForElement(".u6vdEc").then((element) => {
     const meetingTitleElement = /** @type {HTMLDivElement} */ (element)
     meetingTitleElement?.setAttribute("contenteditable", "true")
-    meetingTitleElement.title = "Edit meeting title for TranscripTonic"
+    meetingTitleElement.title = "Edit meeting title for MINUTE FLOW"
     meetingTitleElement.style.cssText = `text-decoration: underline white; text-underline-offset: 4px;`
 
     meetingTitleElement?.addEventListener("input", handleMeetingTitleElementChange)
@@ -669,7 +822,7 @@ function meetsMinVersion(oldVer, newVer) {
 function checkExtensionStatus() {
   return new Promise((resolve, reject) => {
     // Set default value as 200
-    extensionStatusJSON = { status: 200, message: "<strong>TranscripTonic is running</strong> <br /> Do not turn off captions" }
+    extensionStatusJSON = { status: 200, message: "<strong>MINUTE FLOW IS HEARING😎</strong> <br /> Do not turn off captions" }
 
     // https://stackoverflow.com/a/42518434
     fetch(
@@ -683,7 +836,7 @@ function checkExtensionStatus() {
         // Disable extension if version is below the min version
         if (!meetsMinVersion(chrome.runtime.getManifest().version, minVersion)) {
           extensionStatusJSON.status = 400
-          extensionStatusJSON.message = `<strong>TranscripTonic is not running</strong> <br /> Please force update to v${minVersion} by following <a href="https://github.com/vivek-nexus/transcriptonic/wiki/Manually-update-TranscripTonic" target="_blank">these instructions</a>`
+          extensionStatusJSON.message = `<strong>MINUTE FLOW is outdated</strong> <br /> Please update to v${minVersion} following the wiki instructions`
         }
         else {
           // Update status based on response
